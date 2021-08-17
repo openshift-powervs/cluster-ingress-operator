@@ -112,6 +112,10 @@ const (
 	// proxy should prefer using a local endpoint but forward traffic to any
 	// available endpoint if no local endpoint is available.
 	localWithFallbackAnnotation = "traffic-policy.network.alpha.openshift.io/local-with-fallback"
+
+	// PowerVSPlatformType represents the IBM Power Virtual Systems offering (colo with IBM Cloud)
+	//TODO: Remove the below const declaration and refer to upstream apis once Power VS specific changes are merged
+	PowerVSPlatformType configv1.PlatformType = "PowerVS"
 )
 
 var (
@@ -148,6 +152,9 @@ var (
 		// vSphere does not support load balancers as of 2019-06-17.
 		configv1.VSpherePlatformType: nil,
 		configv1.IBMCloudPlatformType: {
+			iksLBScopeAnnotation: iksLBScopePrivate,
+		},
+		PowerVSPlatformType: {
 			iksLBScopeAnnotation: iksLBScopePrivate,
 		},
 	}
@@ -302,6 +309,12 @@ func desiredLoadBalancerService(ci *operatorv1.IngressController, deploymentRef 
 			// LB places VIP on one of the worker nodes, using keepalived to maintain the VIP and ensuring redundancy
 			// LB relies on iptable rules kube-proxy puts in to send traffic from the VIP node to the cluster
 			// If policy is local, traffic is only sent to pods on the local node, as such Cluster enables traffic to flow to  all the pods in the cluster
+			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
+		case PowerVSPlatformType:
+			//Power VS platform uses same LB service as like IBM Cloud Platform
+			if !isInternal {
+				service.Annotations[iksLBScopeAnnotation] = iksLBScopePublic
+			}
 			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeCluster
 		}
 		// Azure load balancers are not customizable and are set to (2 fail @ 5s interval, 2 healthy)
